@@ -1,0 +1,36 @@
+{
+  "name": "web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0",
+    "dev:overview": "ACHADMIN_OVERVIEW_PREVIEW=1 next dev --hostname 0.0.0.0 --port 3001",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "npm run lint && npm run typecheck && npm test && npm run build"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "next": "16.4.6",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^5.2.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.6",
+    "jsdom": "^31.0.1",
+    "typescript": "^5",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^4.1.12"
+  }
+}
