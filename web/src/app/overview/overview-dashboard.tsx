@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
 import ReceptionDesk from "./reception";
+import EscalationInbox from "./escalation-inbox";
+import EmployeeManagement from "./employee-management";
+import FacilityManagement from "./facility-management";
 import styles from "./overview.module.css";
 
 type Theme = "night" | "normal";
@@ -12,8 +15,14 @@ type IconName =
   | "opd"
   | "duties"
   | "alerts"
-  | "staff";
-type MainTab = "overview" | "reception";
+  | "staff"
+  | "facilities";
+type MainTab =
+  | "overview"
+  | "reception"
+  | "facilities"
+  | "escalations"
+  | "employees";
 
 type Metric = {
   label: string;
@@ -72,7 +81,6 @@ const upcomingNavigation: { icon: IconName; label: string }[] = [
   { icon: "opd", label: "Outpatient visits" },
   { icon: "duties", label: "Duty roster" },
   { icon: "alerts", label: "Alerts" },
-  { icon: "staff", label: "Staff problems" },
 ];
 
 const minuteInMilliseconds = 60_000;
@@ -135,6 +143,12 @@ function Icon({ name }: { name: IconName }) {
         <>
           <path d="M4 5.5h16v11H9l-5 3v-14Z" />
           <path d="M8 10h8m-8 3h5" />
+        </>
+      )}
+      {name === "facilities" && (
+        <>
+          <path d="M4 20V5l8-3 8 3v15H4Z" />
+          <path d="M9 20v-5h6v5M8 8h1m6 0h1m-8 3h1m6 0h1" />
         </>
       )}
     </svg>
@@ -238,6 +252,33 @@ export default function OverviewDashboard() {
           >
             <Icon name="opd" />
             <span>Reception</span>
+          </button>
+          <button
+            className={`${styles.navItem} ${activeTab === "escalations" ? styles.activeNavItem : ""}`}
+            type="button"
+            aria-pressed={activeTab === "escalations"}
+            onClick={() => setActiveTab("escalations")}
+          >
+            <Icon name="staff" />
+            <span>Escalations</span>
+          </button>
+          <button
+            className={`${styles.navItem} ${activeTab === "employees" ? styles.activeNavItem : ""}`}
+            type="button"
+            aria-pressed={activeTab === "employees"}
+            onClick={() => setActiveTab("employees")}
+          >
+            <Icon name="staff" />
+            <span>Employees</span>
+          </button>
+          <button
+            className={`${styles.navItem} ${activeTab === "facilities" ? styles.activeNavItem : ""}`}
+            type="button"
+            aria-pressed={activeTab === "facilities"}
+            onClick={() => setActiveTab("facilities")}
+          >
+            <Icon name="facilities" />
+            <span>Facilities</span>
           </button>
           {upcomingNavigation.map(({ icon, label }) => (
             <button
@@ -370,6 +411,15 @@ export default function OverviewDashboard() {
         </div>
         <div hidden={activeTab !== "reception"}>
           <ReceptionDesk />
+        </div>
+        <div hidden={activeTab !== "facilities"}>
+          <FacilityManagement />
+        </div>
+        <div hidden={activeTab !== "escalations"}>
+          <EscalationInbox />
+        </div>
+        <div hidden={activeTab !== "employees"}>
+          <EmployeeManagement />
         </div>
       </main>
     </div>
