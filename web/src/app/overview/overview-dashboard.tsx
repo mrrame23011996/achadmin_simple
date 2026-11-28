@@ -35,12 +35,12 @@ type Metric = {
 
 const metrics: Metric[] = [
   {
-    label: "Available beds",
-    category: "CAPACITY",
-    value: "24",
-    detail: "of 120 beds",
-    note: "Beds ready for admission",
-    icon: "beds",
+    label: "Total patients admitted",
+    category: "INPATIENT",
+    value: "42",
+    detail: "patients",
+    note: "Currently admitted in the hospital",
+    icon: "opd",
   },
   {
     label: "OPD visits today",
@@ -51,27 +51,19 @@ const metrics: Metric[] = [
     icon: "opd",
   },
   {
-    label: "Overdue duties",
-    category: "DUTY ROSTER",
-    value: "07",
-    detail: "duties",
-    note: "2 need urgent follow-up",
-    icon: "duties",
-  },
-  {
     label: "Active alerts",
-    category: "ATTENTION",
+    category: "PRIORITY ESCALATIONS",
     value: "03",
-    detail: "alerts",
-    note: "1 needs immediate review",
+    detail: "escalations",
+    note: "Urgent 1 · High 1 · Medium 1",
     icon: "alerts",
   },
   {
-    label: "Open staff problems",
-    category: "TEAM",
+    label: "Staff approvals",
+    category: "TEAM APPROVALS",
     value: "05",
-    detail: "open items",
-    note: "3 waiting for a response",
+    detail: "pending approvals",
+    note: "Leave approvals · Device approvals",
     icon: "staff",
   },
 ];
@@ -352,7 +344,7 @@ export default function OverviewDashboard() {
             <div>
               <span className={styles.sectionEyebrow}>THE DAILY PICTURE</span>
               <h2>Today at a glance</h2>
-              <p>Five key areas to help you stay one step ahead.</p>
+              <p>Four key areas to help you stay one step ahead.</p>
             </div>
             <span className={styles.sampleLabel}>
               <span />
@@ -361,11 +353,9 @@ export default function OverviewDashboard() {
           </div>
 
           <section className={styles.metricsGrid} aria-label="Hospital overview metrics">
-            {metrics.map((metric, index) => (
+            {metrics.map((metric) => (
               <article
-                className={`${styles.metricCard} ${
-                  index >= 3 ? styles.wideMetricCard : ""
-                }`}
+                className={styles.metricCard}
                 key={metric.label}
               >
                 <div className={styles.metricTop}>
@@ -384,17 +374,7 @@ export default function OverviewDashboard() {
                   <strong>{metric.value}</strong>
                   <span>{metric.detail}</span>
                 </div>
-                {metric.label === "Available beds" ? (
-                  <div
-                    className={styles.capacityTrack}
-                    role="img"
-                    aria-label="Sample bed availability: 24 of 120 beds available"
-                  >
-                    <span />
-                  </div>
-                ) : (
-                  <span className={styles.metricRule} />
-                )}
+                <span className={styles.metricRule} />
                 <p className={styles.metricNote}>{metric.note}</p>
               </article>
             ))}

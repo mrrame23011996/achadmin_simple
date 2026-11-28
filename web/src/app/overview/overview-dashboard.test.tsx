@@ -84,14 +84,18 @@ describe("hospital overview", () => {
     expect(getTimeGreeting(19)).toBe("Good evening");
   });
 
-  it("shows all five requested sample metrics", () => {
+  it("shows admissions, OPD, priority escalations, and staff approvals", () => {
     render(<OverviewDashboard />);
 
-    expect(screen.getByRole("heading", { name: "Available beds" })).toBeDefined();
+    expect(
+      screen.getByRole("heading", { name: "Total patients admitted" }),
+    ).toBeDefined();
     expect(screen.getByRole("heading", { name: "OPD visits today" })).toBeDefined();
-    expect(screen.getByRole("heading", { name: "Overdue duties" })).toBeDefined();
     expect(screen.getByRole("heading", { name: "Active alerts" })).toBeDefined();
-    expect(screen.getByRole("heading", { name: "Open staff problems" })).toBeDefined();
+    expect(screen.getByRole("heading", { name: "Staff approvals" })).toBeDefined();
+    expect(screen.getByText("Urgent 1 · High 1 · Medium 1")).toBeDefined();
+    expect(screen.getByText("Leave approvals · Device approvals")).toBeDefined();
+    expect(screen.queryByRole("heading", { name: "Overdue duties" })).toBeNull();
     expect(screen.getByText(/These numbers are sample data/)).toBeDefined();
   });
 
