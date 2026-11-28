@@ -1,16 +1,37 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import Home from "./page";
 
-const { push } = vi.hoisted(() => ({ push: vi.fn() }));
+const { replace, refresh, signInWithPassword, resetPasswordForEmail } =
+  vi.hoisted(() => ({
+    replace: vi.fn(),
+    refresh: vi.fn(),
+    signInWithPassword: vi.fn(),
+    resetPasswordForEmail: vi.fn(),
+  }));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push }),
+  useRouter: () => ({ replace, refresh }),
+}));
+
+vi.mock("@/lib/supabase/browser", () => ({
+  createClient: () => ({
+    auth: { signInWithPassword, resetPasswordForEmail },
+  }),
 }));
 
 afterEach(() => {
   cleanup();
-  push.mockReset();
+  replace.mockReset();
+  refresh.mockReset();
+  signInWithPassword.mockReset();
+  resetPasswordForEmail.mockReset();
 });
 
 describe("owner access page", () => {
@@ -27,7 +48,7 @@ describe("owner access page", () => {
     expect(app.getAttribute("data-theme")).toBe("night");
   });
 
-  it("shows owner sign-in and switches to one-time setup", () => {
+  it("shows owner sign-in and explains invite-only account setup", () => {
     render(<Home />);
 
     expect(
@@ -36,14 +57,16 @@ describe("owner access page", () => {
     expect(screen.getByLabelText("Email address")).toBeDefined();
     expect(screen.getByLabelText("Password")).toBeDefined();
 
-    fireEvent.click(screen.getByRole("button", { name: "First-time setup" }));
+    fireEvent.click(screen.getByRole("button", { name: "Account invite" }));
 
     expect(
-      screen.getByRole("heading", { level: 2, name: "Let’s get you set up." }),
+      screen.getByRole("heading", {
+        level: 2,
+        name: "Account access is by invitation.",
+      }),
     ).toBeDefined();
-    expect(screen.getByLabelText("Hospital name")).toBeDefined();
-    expect(screen.getByLabelText("Your full name")).toBeDefined();
-    expect(screen.getByLabelText("Confirm password")).toBeDefined();
+    expect(screen.getByText("Invite-only accounts")).toBeDefined();
+    expect(screen.queryByLabelText("Hospital name")).toBeNull();
   });
 
   it("lets owners reveal and hide their password", () => {
@@ -59,38 +82,20 @@ describe("owner access page", () => {
     expect(password.type).toBe("password");
   });
 
-  it("rejects a mismatched setup password without saving account details", () => {
+  it("keeps public registration disabled for owner accounts", () => {
     render(<Home />);
-    fireEvent.click(screen.getByRole("button", { name: "First-time setup" }));
+    fireEvent.click(screen.getByRole("button", { name: "Account invite" }));
 
-    fireEvent.change(screen.getByLabelText("Hospital name"), {
-      target: { value: "Northstar Medical Center" },
-    });
-    fireEvent.change(screen.getByLabelText("Your full name"), {
-      target: { value: "Alex Morgan" },
-    });
-    fireEvent.change(screen.getByLabelText("Email address"), {
-      target: { value: "alex@northstar.test" },
-    });
-    fireEvent.change(screen.getByLabelText("Password"), {
-      target: { value: "secure-password" },
-    });
-    fireEvent.change(screen.getByLabelText("Confirm password"), {
-      target: { value: "different-password" },
-    });
-    fireEvent.submit(
-      screen.getByRole("button", { name: "Create owner account" }).closest("form")!,
-    );
-
-    expect(screen.getByRole("status").textContent).toContain(
-      "Your passwords do not match",
-    );
+    expect(screen.getByText("Invite-only accounts")).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Create owner account" })).toBeNull();
+    expect(signInWithPassword).not.toHaveBeenCalled();
   });
 
-  it("shows the temporary demo credentials and rejects incorrect details", () => {
+  it("surfaces authentication errors from Supabase", async () => {
+    signInWithPassword.mockResolvedValue({
+      error: { message: "Invalid login credentials" },
+    });
     render(<Home />);
-    expect(screen.getByText("owner@achadmin.local")).toBeDefined();
-    expect(screen.getByText("DemoOwner123!")).toBeDefined();
 
     fireEvent.change(screen.getByLabelText("Email address"), {
       target: { value: "owner@hospital.test" },
@@ -102,25 +107,50 @@ describe("owner access page", () => {
       screen.getByRole("button", { name: "Sign in to your workspace" }).closest("form")!,
     );
 
-    expect(screen.getByRole("status").textContent).toContain(
-      "Those demo credentials don’t match",
+    expect((await screen.findByRole("status")).textContent).toContain(
+      "Invalid login credentials",
     );
-    expect(push).not.toHaveBeenCalled();
   });
 
-  it("opens the overview with valid demo credentials", () => {
+  it("signs in through Supabase and opens the overview", async () => {
+    signInWithPassword.mockResolvedValue({ error: null });
     render(<Home />);
 
     fireEvent.change(screen.getByLabelText("Email address"), {
-      target: { value: "OWNER@ACHADMIN.LOCAL " },
+      target: { value: "owner@hospital.test" },
     });
     fireEvent.change(screen.getByLabelText("Password"), {
-      target: { value: "DemoOwner123!" },
+      target: { value: "correct-password" },
     });
     fireEvent.submit(
       screen.getByRole("button", { name: "Sign in to your workspace" }).closest("form")!,
     );
 
-    expect(push).toHaveBeenCalledWith("/overview");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/overview"));
+    expect(refresh).toHaveBeenCalled();
+    expect(signInWithPassword).toHaveBeenCalledWith({
+      email: "owner@hospital.test",
+      password: "correct-password",
+    });
+  });
+
+  it("sends a password-reset email with the secure callback URL", async () => {
+    resetPasswordForEmail.mockResolvedValue({ error: null });
+    render(<Home />);
+    fireEvent.change(screen.getByLabelText("Email address"), {
+      target: { value: "owner@hospital.test" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Forgot password?" }));
+
+    expect((await screen.findByRole("status")).textContent).toContain(
+      "password reset instructions have been sent",
+    );
+    expect(resetPasswordForEmail).toHaveBeenCalledWith(
+      "owner@hospital.test",
+      expect.objectContaining({
+        redirectTo: expect.stringContaining("/auth/callback?type=recovery"),
+      }),
+    );
   });
 });

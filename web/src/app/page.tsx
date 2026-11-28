@@ -1,16 +1,25 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useSyncExternalStore, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/browser";
 import styles from "./page.module.css";
 
 type AccessMode = "sign-in" | "setup";
 type ColorMode = "night" | "normal";
 
-const DEMO_CREDENTIALS = {
-  email: "owner@achadmin.local",
-  password: "DemoOwner123!",
-};
+function subscribeToLocation(onChange: () => void) {
+  window.addEventListener("popstate", onChange);
+  return () => window.removeEventListener("popstate", onChange);
+}
+
+function getCallbackErrorSnapshot() {
+  return new URLSearchParams(window.location.search).get("authError") === "callback";
+}
+
+function getServerCallbackErrorSnapshot() {
+  return false;
+}
 
 function BrandMark() {
   return (
@@ -49,7 +58,17 @@ export default function Home() {
   const [colorMode, setColorMode] = useState<ColorMode>("night");
   const [showPassword, setShowPassword] = useState(false);
   const [notice, setNotice] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const hasCallbackError = useSyncExternalStore(
+    subscribeToLocation,
+    getCallbackErrorSnapshot,
+    getServerCallbackErrorSnapshot,
+  );
   const isSetup = mode === "setup";
+  const callbackErrorNotice = hasCallbackError
+    ? "That invitation or recovery link is invalid or expired. Ask your administrator for a new invite or request another reset email."
+    : "";
 
   function changeMode(nextMode: AccessMode) {
     setMode(nextMode);
@@ -57,34 +76,72 @@ export default function Home() {
     setShowPassword(false);
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    if (
-      isSetup &&
-      formData.get("password") !== formData.get("confirmPassword")
-    ) {
-      setNotice("Your passwords do not match. Please check and try again.");
+    const email = String(formData.get("email") ?? "").trim();
+    const password = String(formData.get("password") ?? "");
+
+    setNotice("");
+    setIsSubmitting(true);
+    try {
+      const { error } = await createClient().auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) {
+        setNotice(error.message);
+        return;
+      }
+
+      router.replace("/overview");
+      router.refresh();
+    } catch (error) {
+      setNotice(
+        error instanceof Error ? error.message : "Unable to sign in right now.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handlePasswordReset(form: HTMLFormElement | null) {
+    if (!form) {
+      setNotice("Enter your email address first, then request a reset link.");
       return;
     }
-    if (isSetup) {
-      setNotice(
-        "Owner registration will be available when backend authentication is connected. Your details have not been saved.",
-      );
+    const email = String(new FormData(form).get("email") ?? "").trim();
+    if (!email) {
+      setNotice("Enter your email address first, then request a reset link.");
       return;
     }
 
-    const email = formData.get("email");
-    const password = formData.get("password");
-    if (
-      typeof email === "string" &&
-      email.trim().toLowerCase() === DEMO_CREDENTIALS.email &&
-      password === DEMO_CREDENTIALS.password
-    ) {
-      router.push("/overview");
-      return;
+    setNotice("");
+    setIsResetting(true);
+    try {
+      const redirectTo = new URL(
+        "/auth/callback?type=recovery&next=%2Fauth%2Fupdate-password",
+        window.location.origin,
+      ).toString();
+      const { error } = await createClient().auth.resetPasswordForEmail(email, {
+        redirectTo,
+      });
+      if (error) {
+        setNotice(error.message);
+        return;
+      }
+      setNotice(
+        "If that email has an account, password reset instructions have been sent.",
+      );
+    } catch (error) {
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "Unable to request a password reset right now.",
+      );
+    } finally {
+      setIsResetting(false);
     }
-    setNotice("Those demo credentials don’t match. Use the details shown below.");
   }
 
   return (
@@ -207,12 +264,12 @@ export default function Home() {
           <div className={styles.formHeading}>
             <span className={styles.formKicker}>
               <LockIcon />
-              OWNER ACCESS PREVIEW
+              OWNER ACCESS
             </span>
-            <h2>{isSetup ? "Let’s get you set up." : "Welcome back."}</h2>
+            <h2>{isSetup ? "Account access is by invitation." : "Welcome back."}</h2>
             <p>
               {isSetup
-                ? "Create the primary owner account for your hospital."
+                ? "Ask your hospital administrator to invite your email address. Use the secure link in their email to finish setting up your password."
                 : "Sign in to your hospital’s owner workspace."}
             </p>
           </div>
@@ -232,157 +289,103 @@ export default function Home() {
               aria-pressed={isSetup}
               onClick={() => changeMode("setup")}
             >
-              First-time setup
+              Account invite
             </button>
           </div>
-
-          {!isSetup && (
-            <div className={styles.demoAccess} role="note">
-              <div className={styles.demoAccessHeading}>
-                <span className={styles.demoDot} />
-                <strong>Temporary demo access</strong>
-                <span className={styles.demoOnly}>DEVELOPMENT ONLY</span>
-              </div>
-              <div className={styles.demoCredential}>
-                <span>Email</span>
-                <code>{DEMO_CREDENTIALS.email}</code>
-              </div>
-              <div className={styles.demoCredential}>
-                <span>Password</span>
-                <code>{DEMO_CREDENTIALS.password}</code>
-              </div>
-            </div>
-          )}
 
           {isSetup && (
             <div className={styles.setupNote}>
               <span className={styles.noteIcon} aria-hidden="true">✦</span>
               <p>
-                <strong>One-time owner registration</strong>
-                <span>Set up your hospital&apos;s primary administrator.</span>
+                <strong>Invite-only accounts</strong>
+                <span>
+                  No public registration is available. If you haven&apos;t
+                  received an invitation, contact your hospital administrator.
+                </span>
               </p>
             </div>
           )}
 
-          <form className={styles.form} onSubmit={handleSubmit}>
-            {isSetup && (
-              <>
-                <label className={styles.field}>
-                  <span>Hospital name</span>
-                  <input
-                    autoComplete="organization"
-                    name="hospital"
-                    placeholder="e.g. Northstar Medical Center"
-                    required
-                  />
-                </label>
-                <label className={styles.field}>
-                  <span>Your full name</span>
-                  <input
-                    autoComplete="name"
-                    name="fullName"
-                    placeholder="e.g. Alex Morgan"
-                    required
-                  />
-                </label>
-              </>
-            )}
-
-            <label className={styles.field}>
-              <span>Email address</span>
-              <span className={styles.inputWrap}>
-                <MailIcon />
-                <input
-                  autoComplete="email"
-                  name="email"
-                  placeholder="you@hospital.com"
-                  required
-                  type="email"
-                  onChange={() => setNotice("")}
-                />
-              </span>
-            </label>
-
-            <label className={styles.field}>
-              <span>Password</span>
-              <span className={styles.inputWrap}>
-                <LockIcon />
-                <input
-                  autoComplete={isSetup ? "new-password" : "current-password"}
-                  minLength={isSetup ? 8 : undefined}
-                  name="password"
-                  placeholder={isSetup ? "At least 8 characters" : "Enter your password"}
-                  required
-                  type={showPassword ? "text" : "password"}
-                  onChange={() => setNotice("")}
-                />
-                <button
-                  className={styles.passwordToggle}
-                  type="button"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                  onClick={() => setShowPassword((visible) => !visible)}
-                >
-                  {showPassword ? (
-                    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                      <path d="M2 2 18 18M8.6 8.6a2 2 0 0 0 2.8 2.8" />
-                      <path d="M7.1 4.3A8.6 8.6 0 0 1 10 3.8c4.5 0 7.5 4.7 7.5 4.7a9.9 9.9 0 0 1-2.2 2.5M5.2 5.2C3.5 6.2 2.5 8.5 2.5 8.5s3 4.7 7.5 4.7a8.6 8.6 0 0 0 2.1-.3" />
-                    </svg>
-                  ) : (
-                    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                      <path d="M2.5 10s3-5 7.5-5 7.5 5 7.5 5-3 5-7.5 5-7.5-5-7.5-5Z" />
-                      <circle cx="10" cy="10" r="2" />
-                    </svg>
-                  )}
-                </button>
-              </span>
-            </label>
-
-            {isSetup && (
+          {!isSetup && (
+            <form className={styles.form} onSubmit={handleSubmit}>
               <label className={styles.field}>
-                <span>Confirm password</span>
+                <span>Email address</span>
                 <span className={styles.inputWrap}>
-                  <LockIcon />
+                  <MailIcon />
                   <input
-                    autoComplete="new-password"
-                    minLength={8}
-                    name="confirmPassword"
-                    placeholder="Enter your password again"
+                    autoComplete="email"
+                    name="email"
+                    placeholder="you@hospital.com"
                     required
-                    type="password"
+                    type="email"
                     onChange={() => setNotice("")}
                   />
                 </span>
               </label>
-            )}
 
-            {!isSetup && (
+              <label className={styles.field}>
+                <span>Password</span>
+                <span className={styles.inputWrap}>
+                  <LockIcon />
+                  <input
+                    autoComplete="current-password"
+                    name="password"
+                    placeholder="Enter your password"
+                    required
+                    type={showPassword ? "text" : "password"}
+                    onChange={() => setNotice("")}
+                  />
+                  <button
+                    className={styles.passwordToggle}
+                    type="button"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    onClick={() => setShowPassword((visible) => !visible)}
+                  >
+                    {showPassword ? (
+                      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                        <path d="M2 2 18 18M8.6 8.6a2 2 0 0 0 2.8 2.8" />
+                        <path d="M7.1 4.3A8.6 8.6 0 0 1 10 3.8c4.5 0 7.5 4.7 7.5 4.7a9.9 9.9 0 0 1-2.2 2.5M5.2 5.2C3.5 6.2 2.5 8.5 2.5 8.5s3 4.7 7.5 4.7a8.6 8.6 0 0 0 2.1-.3" />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                        <path d="M2.5 10s3-5 7.5-5 7.5 5 7.5 5-3 5-7.5 5-7.5-5-7.5-5Z" />
+                        <circle cx="10" cy="10" r="2" />
+                      </svg>
+                    )}
+                  </button>
+                </span>
+              </label>
+
               <button
                 className={styles.forgotButton}
                 type="button"
-                onClick={() =>
-                  setNotice("Password recovery will be available when authentication is connected.")
-                }
+                disabled={isResetting}
+                onClick={(event) => void handlePasswordReset(event.currentTarget.form)}
               >
-                Forgot password?
+                {isResetting ? "Sending reset link…" : "Forgot password?"}
               </button>
-            )}
 
-            <button className={styles.submitButton} type="submit">
-              {isSetup ? "Create owner account" : "Sign in to your workspace"}
-              <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                <path d="M4 10h12m-5-5 5 5-5 5" />
-              </svg>
-            </button>
-            {notice && (
-              <p className={styles.formNotice} role="status">
-                {notice}
-              </p>
-            )}
-          </form>
+              <button
+                className={styles.submitButton}
+                type="submit"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Signing in…" : "Sign in to your workspace"}
+                <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path d="M4 10h12m-5-5 5 5-5 5" />
+                </svg>
+              </button>
+              {(notice || callbackErrorNotice) && (
+                <p className={styles.formNotice} role="status">
+                  {notice || callbackErrorNotice}
+                </p>
+              )}
+            </form>
+          )}
 
           <div className={styles.formSecurity}>
             <span className={styles.securityIcon}><LockIcon /></span>
-            <span>Demo access only. Credentials and account details are not stored.</span>
+            <span>Account access is securely managed by your hospital.</span>
           </div>
         </div>
 

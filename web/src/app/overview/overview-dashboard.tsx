@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
+import { createClient } from "@/lib/supabase/browser";
 import ReceptionDesk from "./reception";
 import EscalationInbox from "./escalation-inbox";
 import EmployeeManagement from "./employee-management";
@@ -197,8 +199,11 @@ function ThemeSwitch({
 }
 
 export default function OverviewDashboard() {
+  const router = useRouter();
   const [theme, setTheme] = useState<Theme>("night");
   const [activeTab, setActiveTab] = useState<MainTab>("overview");
+  const [signOutNotice, setSignOutNotice] = useState("");
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const currentMinute = useSyncExternalStore(
     subscribeToClock,
     getCurrentMinute,
@@ -215,6 +220,27 @@ export default function OverviewDashboard() {
         year: "numeric",
       }).format(now)
     : "Your daily overview";
+
+  async function handleSignOut() {
+    setSignOutNotice("");
+    setIsSigningOut(true);
+    try {
+      const { error } = await createClient().auth.signOut();
+      if (error) {
+        setSignOutNotice(error.message);
+        return;
+      }
+
+      router.replace("/");
+      router.refresh();
+    } catch (error) {
+      setSignOutNotice(
+        error instanceof Error ? error.message : "Unable to sign out right now.",
+      );
+    } finally {
+      setIsSigningOut(false);
+    }
+  }
 
   return (
     <div className={styles.appShell} data-theme={theme}>
@@ -293,11 +319,22 @@ export default function OverviewDashboard() {
           <div className={styles.ownerIdentity}>
             <span className={styles.ownerAvatar}>O</span>
             <span className={styles.ownerDetails}>
-              <strong>Hospital owner</strong>
-              <small>Owner account</small>
+              <strong>Hospital admin</strong>
+              <small>Signed in</small>
             </span>
           </div>
+          <button
+            className={styles.signOutButton}
+            type="button"
+            disabled={isSigningOut}
+            onClick={() => void handleSignOut()}
+          >
+            {isSigningOut ? "Signing out…" : "Sign out"}
+          </button>
         </div>
+        {signOutNotice && (
+          <p className={styles.signOutNotice} role="status">{signOutNotice}</p>
+        )}
       </header>
 
       <main className={styles.dashboardContent} aria-label={activeTab}>

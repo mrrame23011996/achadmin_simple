@@ -1,6 +1,6 @@
 # ACH Admin
 
-Local-first development for the ACH Admin web app. The web app is in [`web/`](./web); it uses Next.js, React, and TypeScript. Its pages and server-side Next.js code run locally during development. A database or third-party integration can be added later and run locally or against a separately configured service.
+Local-first development for the ACH Admin web app. The web app is in [`web/`](./web); it uses Next.js, React, and TypeScript. Its pages and server-side Next.js code run locally during development. Supabase Auth can be configured for owner access; hospital records remain sample data and are not connected to a database.
 
 ## Requirements
 
@@ -17,11 +17,16 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000). In VS Code or Codespaces, forward port 3000 if prompted.
 
-## Owner access
+## Supabase owner access
 
-The web app starts with owner sign-in and first-time setup screens. For local previews, sign in with `owner@achadmin.local` and `DemoOwner123!` to open the overview. This is a client-side demo only: it is not secure authentication, the overview route is not protected, and no credentials or account details are stored. Owner registration is not connected yet. Replace the demo flow with secure server-side authentication and persistent storage before using this app with real accounts or hospital data.
+1. Copy `web/.env.example` to `web/.env.local`.
+2. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` using the project URL and publishable/anon key from your Supabase project's API settings. These are public client values; never put a service-role key in the app.
+3. In Supabase Authentication settings, disable public sign-ups so only invited users can access this owner portal. In URL configuration, set the local site URL to `http://localhost:3000` and allow `http://localhost:3000/auth/callback`. Configure invitation email links to return to `/auth/callback?type=invite&next=%2Fauth%2Fupdate-password`.
+4. Invite the initial owner from Supabase Authentication → Users. The account invite panel is informational; public sign-up is intentionally disabled. Invite only trusted administrators because invited accounts can access the owner overview. Invitees finish setting a password from the email link, then sign in. Password reset is also handled through Supabase email.
 
-The first hospital overview prototype is available at `/overview`. It includes a time-based greeting and sample values for available beds, OPD visits, overdue duties, active alerts, and open staff problems. These values are illustrative only and are not live hospital data.
+The overview route uses the Supabase session cookie and redirects signed-out visitors to the sign-in page. The overview logout button ends the session. Authentication is connected, but patient, employee, facility, and escalation data are still previews; do not enter real hospital or patient information until persistence, authorization, and database row-level security policies are implemented.
+
+The first hospital overview prototype is available at `/overview`. It includes a time-based greeting and sample values for admitted patients, OPD visits, priority escalations, and staff approvals. These values are illustrative only and are not live hospital data.
 
 The Reception tab supports searching sample OPD patients, registering new OPD patients with name, age, gender, and address (phone is optional), admitting an existing OPD patient to IPD, and tracking current admissions and discharge history. Direct IPD registration is available through the emergency toggle in the registration form. Reception records are in-memory preview data; they persist while switching tabs but reset when the page is refreshed.
 

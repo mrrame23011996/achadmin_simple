@@ -69,6 +69,7 @@
 }
 
 .topBar {
+  position: relative;
   display: flex;
   align-items: center;
   gap: clamp(18px, 2.2vw, 32px);
@@ -229,6 +230,49 @@
 .ownerDetails small {
   color: var(--blue-grey);
   font-size: 10px;
+}
+
+.signOutButton {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--muted-blue);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--blue-grey);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.signOutButton:hover {
+  border-color: var(--teal);
+  color: var(--off-white);
+}
+
+.signOutButton:focus-visible {
+  outline: 3px solid var(--teal);
+  outline-offset: 3px;
+}
+
+.signOutButton:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.signOutNotice {
+  position: absolute;
+  top: 100%;
+  right: 24px;
+  z-index: 1;
+  max-width: 360px;
+  padding: 10px 12px;
+  border: 1px solid var(--muted-blue);
+  border-radius: 8px;
+  background: var(--dark-blue);
+  color: #f1c98a;
+  font-size: 11px;
 }
 
 .dashboardContent {
